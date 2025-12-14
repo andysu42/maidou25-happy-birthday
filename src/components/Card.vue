@@ -33,13 +33,16 @@ const touchStartX = ref(0)
 const touchStartY = ref(0)
 const tearProgress = ref(0) // 0-100
 
+// 檢測是否為移動設備
+const isMobile = ref(false)
+
 // 計算 tilt 角度
 const tiltX = computed(() => (mouseY.value - 0.5) * 20) // ±10deg
 const tiltY = computed(() => (mouseX.value - 0.5) * 28) // ±14deg
 
-// 處理滑鼠移動（hover tilt）
+// 處理滑鼠移動（hover tilt）- 僅桌面端
 function handleMouseMove(e: MouseEvent) {
-  if (!packElement.value || !props.singleCardMode || props.card.isOpened) return
+  if (!packElement.value || !props.singleCardMode || props.card.isOpened || isMobile.value) return
 
   // 如果正在拖曳撕開，優先處理撕開
   if (isMouseDown) {
@@ -108,12 +111,12 @@ function handleMouseMoveForTear(e: MouseEvent) {
       packState.value = 'tear'
     }
 
-    // 計算撕開進度（需要滑動整個寬度的80%才算完成）
-    const maxTear = rect.width * 0.8
+    // 計算撕開進度（需要滑動整個寬度的85%才能達到100%）
+    const maxTear = rect.width * 0.85
     tearProgress.value = Math.min(100, (deltaX / maxTear) * 100)
 
-    // 如果滑到底（達到90%以上），完成撕開
-    if (tearProgress.value >= 90 && packState.value === 'tear') {
+    // 必須滑到底（達到98%以上）才能完成撕開
+    if (tearProgress.value >= 98 && packState.value === 'tear') {
       completeTear()
     }
   }
@@ -123,8 +126,8 @@ function handleMouseUpForTear() {
   if (isMouseDown) {
     isMouseDown = false
 
-    // 如果沒滑到底，回彈
-    if (packState.value === 'tear' && tearProgress.value < 90) {
+    // 如果沒滑到底（98%以下），回彈
+    if (packState.value === 'tear' && tearProgress.value < 98) {
       packState.value = 'idle'
       tearProgress.value = 0
     } else if (packState.value === 'press') {
@@ -160,49 +163,75 @@ function handleTouchStart(e: TouchEvent) {
     touchStartX.value = touch.clientX
     touchStartY.value = touch.clientY
 
+    // 更新 tilt 效果（手機端用觸控位置）
+    mouseX.value = (touch.clientX - rect.left) / rect.width
+    mouseY.value = (touch.clientY - rect.top) / rect.height
+
+    if (packElement.value) {
+      packElement.value.style.setProperty('--mx', mouseX.value.toString())
+      packElement.value.style.setProperty('--my', mouseY.value.toString())
+    }
+
     // 檢查是否在撕開線附近
     const touchY = touch.clientY - rect.top
     const tearLineY = rect.height / 6
 
     if (Math.abs(touchY - tearLineY) < 50) {
       packState.value = 'press'
+    } else {
+      // 如果不在撕開線附近，進入 hover 狀態（手機端的 tilt 效果）
+      if (packState.value === 'idle') {
+        packState.value = 'hover'
+      }
     }
   }
 }
 
 function handleTouchMove(e: TouchEvent) {
-  if (packState.value !== 'press' && packState.value !== 'tear') return
+  if (!packElement.value) return
 
   const touch = e.touches[0]
-  if (!touch || !packElement.value) return
+  if (!touch) return
 
   const cardRect = packElement.value.getBoundingClientRect()
   const deltaX = touch.clientX - touchStartX.value
   const touchY = touch.clientY - cardRect.top
   const tearLineY = cardRect.height / 6
 
-  // 只在撕開線附近且向右滑動時才觸發
-  if (Math.abs(touchY - tearLineY) < 50 && deltaX > 0) {
-    e.preventDefault()
+  // 更新 tilt 效果（手機端用觸控位置）
+  mouseX.value = (touch.clientX - cardRect.left) / cardRect.width
+  mouseY.value = (touch.clientY - cardRect.top) / cardRect.height
 
-    if (packState.value === 'press') {
-      packState.value = 'tear'
-    }
+  if (packElement.value) {
+    packElement.value.style.setProperty('--mx', mouseX.value.toString())
+    packElement.value.style.setProperty('--my', mouseY.value.toString())
+  }
 
-    // 計算撕開進度（需要滑動整個寬度的80%才算完成）
-    const maxTear = cardRect.width * 0.8
-    tearProgress.value = Math.min(100, (deltaX / maxTear) * 100)
+  // 如果正在撕開，處理撕開邏輯
+  if (packState.value === 'press' || packState.value === 'tear') {
+    // 只在撕開線附近且向右滑動時才觸發
+    if (Math.abs(touchY - tearLineY) < 50 && deltaX > 0) {
+      e.preventDefault()
 
-    // 如果滑到底（達到90%以上），完成撕開
-    if (tearProgress.value >= 90 && packState.value === 'tear') {
-      completeTear()
+      if (packState.value === 'press') {
+        packState.value = 'tear'
+      }
+
+      // 計算撕開進度（需要滑動整個寬度的85%才能達到100%）
+      const maxTear = cardRect.width * 0.85
+      tearProgress.value = Math.min(100, (deltaX / maxTear) * 100)
+
+      // 必須滑到底（達到98%以上）才能完成撕開
+      if (tearProgress.value >= 98 && packState.value === 'tear') {
+        completeTear()
+      }
     }
   }
 }
 
 function handleTouchEnd() {
-  // 如果沒滑到底，回彈
-  if (packState.value === 'tear' && tearProgress.value < 90) {
+  // 如果沒滑到底（98%以下），回彈
+  if (packState.value === 'tear' && tearProgress.value < 98) {
     packState.value = 'idle'
     tearProgress.value = 0
   } else if (packState.value === 'press') {
@@ -214,6 +243,11 @@ function handleTouchEnd() {
 }
 
 onMounted(() => {
+  // 檢測是否為移動設備
+  isMobile.value = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  ) || window.innerWidth <= 768
+
   if (packElement.value) {
     packElement.value.style.setProperty('--mx', '0.5')
     packElement.value.style.setProperty('--my', '0.5')
@@ -428,7 +462,7 @@ const packClasses = computed(() => {
 
 .pack-pattern {
   width: 85%;
-  height: 70%;
+  height: 60%;
   border: 3px solid rgba(255, 255, 255, 0.4);
   border-radius: 12px;
   background: repeating-linear-gradient(45deg,
@@ -453,25 +487,66 @@ const packClasses = computed(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.1) 30%,
-      rgba(255, 255, 255, 0.3) 50%,
-      rgba(255, 255, 255, 0.1) 70%,
-      transparent 100%);
   opacity: 0;
   pointer-events: none;
   transform-origin: center;
-  transition: opacity 0.3s, transform 0.1s;
+  transition: opacity 0.4s ease-out, transform 0.15s ease-out;
   z-index: 2;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* 主要光澤層 - 橢圓形光澤 */
+.pack-shine::before {
+  content: '';
+  position: absolute;
+  width: 150%;
+  height: 150%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse 80% 50% at center,
+      rgba(255, 255, 255, 0.4) 0%,
+      rgba(255, 255, 255, 0.2) 25%,
+      rgba(255, 255, 255, 0.05) 50%,
+      transparent 70%);
+  filter: blur(20px);
+  transition: transform 0.15s ease-out;
+}
+
+/* 次要光澤層 - 高光點 */
+.pack-shine::after {
+  content: '';
+  position: absolute;
+  width: 60%;
+  height: 60%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at center,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0.2) 30%,
+      transparent 60%);
+  filter: blur(15px);
+  transition: transform 0.15s ease-out;
 }
 
 /* 反光隨 tilt 移動 */
 .pack-scene.state-hover .pack-shine,
 .pack-scene.state-press .pack-shine {
   opacity: 1;
-  transform: translate(calc((var(--mx, 0.5) - 0.5) * 100%),
-      calc((var(--my, 0.5) - 0.5) * 100%)) rotate(calc((var(--mx, 0.5) - 0.5) * 20deg));
+}
+
+.pack-scene.state-hover .pack-shine::before,
+.pack-scene.state-press .pack-shine::before {
+  transform: translate(calc(-50% + (var(--mx, 0.5) - 0.5) * 80%),
+      calc(-50% + (var(--my, 0.5) - 0.5) * 60%)) rotate(calc((var(--mx, 0.5) - 0.5) * 15deg));
+}
+
+.pack-scene.state-hover .pack-shine::after,
+.pack-scene.state-press .pack-shine::after {
+  transform: translate(calc(-50% + (var(--mx, 0.5) - 0.5) * 100%),
+      calc(-50% + (var(--my, 0.5) - 0.5) * 80%)) rotate(calc((var(--mx, 0.5) - 0.5) * 10deg));
 }
 
 /* 封條/撕開線（前1/6處） */
