@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useCardStore } from '@/stores/cardStore'
 import Card from '@/components/Card.vue'
+import GiftList from '@/components/GiftList.vue'
 
 const cardStore = useCardStore()
 
@@ -15,8 +16,12 @@ const selectedCardIndex = ref<number | null>(null)
 // 觸控相關
 const touchStartX = ref(0)
 const touchEndX = ref(0)
+const touchStartY = ref(0)
+const touchEndY = ref(0)
 const isDragging = ref(false)
 const dragOffset = ref(0)
+const hasMoved = ref(false) // 是否已經移動（用於區分點擊和滑動）
+const clickTargetIndex = ref<number | null>(null) // 點擊目標索引
 
 // 螢幕寬度（用於響應式調整）
 const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1920)
@@ -174,7 +179,21 @@ function handleTouchStart(e: TouchEvent) {
 
   if (e.touches[0]) {
     touchStartX.value = e.touches[0].clientX
+    touchStartY.value = e.touches[0].clientY
+    touchEndX.value = touchStartX.value
+    touchEndY.value = touchStartY.value
     isDragging.value = true
+    hasMoved.value = false
+
+    // 找到點擊的卡片索引
+    const target = e.target as HTMLElement
+    const cardWrapper = target.closest('.card-wrapper') as HTMLElement
+    if (cardWrapper) {
+      const index = Array.from(cardWrapper.parentElement?.children || []).indexOf(cardWrapper)
+      clickTargetIndex.value = index >= 0 ? index : null
+    } else {
+      clickTargetIndex.value = null
+    }
   }
 }
 
@@ -184,7 +203,18 @@ function handleTouchMove(e: TouchEvent) {
   if (singleCardMode.value) return
 
   if (!isDragging.value || !e.touches[0]) return
+
   touchEndX.value = e.touches[0].clientX
+  touchEndY.value = e.touches[0].clientY
+
+  const deltaX = Math.abs(touchEndX.value - touchStartX.value)
+  const deltaY = Math.abs(touchEndY.value - touchStartY.value)
+
+  // 如果移動距離超過閾值，視為滑動
+  if (deltaX > 10 || deltaY > 10) {
+    hasMoved.value = true
+  }
+
   dragOffset.value = touchEndX.value - touchStartX.value
 }
 
@@ -193,16 +223,27 @@ function handleTouchEnd() {
   // 單卡模式下不處理滑動切換
   if (singleCardMode.value) {
     isDragging.value = false
+    hasMoved.value = false
+    clickTargetIndex.value = null
     return
   }
 
   if (!isDragging.value) return
-  isDragging.value = false
 
   const diff = touchEndX.value - touchStartX.value
   const threshold = 50 // 滑動閾值
 
-  if (Math.abs(diff) > threshold) {
+  // 如果沒有移動或移動距離很小，視為點擊
+  if (!hasMoved.value || (Math.abs(diff) < threshold && Math.abs(touchEndY.value - touchStartY.value) < threshold)) {
+    // 觸發點擊事件
+    if (clickTargetIndex.value !== null && clickTargetIndex.value >= 0) {
+      const card = cardStore.cards[clickTargetIndex.value]
+      if (!card.isOpened) {
+        enterSingleCardMode(clickTargetIndex.value)
+      }
+    }
+  } else if (Math.abs(diff) > threshold) {
+    // 滑動切換卡片
     if (diff > 0) {
       prevCard()
     } else {
@@ -210,31 +251,74 @@ function handleTouchEnd() {
     }
   }
 
+  isDragging.value = false
+  hasMoved.value = false
+  clickTargetIndex.value = null
   dragOffset.value = 0
 }
 
 // 滑鼠拖曳（桌面端）
 let mouseStartX = 0
+let mouseStartY = 0
+let mouseEndX = 0
+let mouseEndY = 0
 let isMouseDragging = false
+let hasMouseMoved = false
+let mouseClickTargetIndex: number | null = null
 
 function handleMouseDown(e: MouseEvent) {
   mouseStartX = e.clientX
+  mouseStartY = e.clientY
+  mouseEndX = mouseStartX
+  mouseEndY = mouseStartY
   isMouseDragging = true
+  hasMouseMoved = false
+
+  // 找到點擊的卡片索引
+  const target = e.target as HTMLElement
+  const cardWrapper = target.closest('.card-wrapper') as HTMLElement
+  if (cardWrapper) {
+    const index = Array.from(cardWrapper.parentElement?.children || []).indexOf(cardWrapper)
+    mouseClickTargetIndex = index >= 0 ? index : null
+  } else {
+    mouseClickTargetIndex = null
+  }
 }
 
 function handleMouseMove(e: MouseEvent) {
   if (!isMouseDragging) return
-  dragOffset.value = e.clientX - mouseStartX
+
+  mouseEndX = e.clientX
+  mouseEndY = e.clientY
+
+  const deltaX = Math.abs(mouseEndX - mouseStartX)
+  const deltaY = Math.abs(mouseEndY - mouseStartY)
+
+  // 如果移動距離超過閾值，視為拖曳
+  if (deltaX > 10 || deltaY > 10) {
+    hasMouseMoved = true
+  }
+
+  dragOffset.value = mouseEndX - mouseStartX
 }
 
 function handleMouseUp() {
   if (!isMouseDragging) return
-  isMouseDragging = false
 
-  const diff = dragOffset.value
+  const diff = mouseEndX - mouseStartX
   const threshold = 50
 
-  if (Math.abs(diff) > threshold) {
+  // 如果沒有移動或移動距離很小，視為點擊
+  if (!hasMouseMoved || (Math.abs(diff) < threshold && Math.abs(mouseEndY - mouseStartY) < threshold)) {
+    // 觸發點擊事件
+    if (mouseClickTargetIndex !== null && mouseClickTargetIndex >= 0) {
+      const card = cardStore.cards[mouseClickTargetIndex]
+      if (!card.isOpened && !singleCardMode.value) {
+        enterSingleCardMode(mouseClickTargetIndex)
+      }
+    }
+  } else if (Math.abs(diff) > threshold) {
+    // 滑動切換卡片
     if (diff > 0) {
       prevCard()
     } else {
@@ -242,6 +326,9 @@ function handleMouseUp() {
     }
   }
 
+  isMouseDragging = false
+  hasMouseMoved = false
+  mouseClickTargetIndex = null
   dragOffset.value = 0
 }
 
@@ -268,12 +355,16 @@ onUnmounted(() => {
     <div class="cards-carousel" @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd"
       @mousedown="handleMouseDown">
       <div class="cards-3d-container">
-        <div v-for="(card, index) in cardStore.cards" :key="card.id" class="card-wrapper" :style="getCardStyle(index)"
-          @click="!singleCardMode && !card.isOpened && enterSingleCardMode(index)">
+        <div v-for="(card, index) in cardStore.cards" :key="card.id" class="card-wrapper" :style="getCardStyle(index)">
           <Card :card="card" :index="index" :current-index="singleCardMode ? selectedCardIndex : currentIndex"
             :single-card-mode="singleCardMode" />
         </div>
       </div>
+    </div>
+
+    <!-- 獎品列表（當所有卡片都開啟時顯示） -->
+    <div v-if="cardStore.allCardsOpened && !singleCardMode" class="gift-list-section">
+      <GiftList />
     </div>
   </div>
 </template>
@@ -356,6 +447,22 @@ onUnmounted(() => {
   transform: scale(0.95);
 }
 
+.gift-list-section {
+  margin-top: 40px;
+  padding-bottom: 40px;
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
 @media (max-width: 768px) {
   .page-title {
     font-size: clamp(16px, calc(24px * (100vw / 768)), 24px);
@@ -377,6 +484,11 @@ onUnmounted(() => {
     left: 15px;
     padding: 8px 16px;
     font-size: 14px;
+  }
+
+  .gift-list-section {
+    margin-top: 30px;
+    padding-bottom: 30px;
   }
 }
 </style>
