@@ -316,8 +316,18 @@ const packClasses = computed(() => {
     <div class="card-popup" :class="{ show: packState === 'reveal' || packState === 'done' }">
       <div class="popup-card">
         <div class="popup-content">
-          <div class="gift-icon-large">🎁</div>
-          <div class="gift-name-large">{{ card.giftName }}</div>
+          <!-- 圖片禮物 -->
+          <div v-if="card.giftImage" class="gift-image-container">
+            <img :src="card.giftImage" :alt="card.giftName" class="gift-image" />
+          </div>
+          <!-- 文字禮物 -->
+          <div v-else-if="card.giftText" class="gift-text-container">
+            <div class="gift-text-content">
+              <div v-for="(line, index) in card.giftText.split('\n')" :key="index" class="gift-text-line">
+                {{ line }}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -845,11 +855,58 @@ const packClasses = computed(() => {
   color: white;
 }
 
-.gift-icon-large {
-  font-size: 80px;
+.gift-image-container {
+  width: 100%;
   margin-bottom: 20px;
-  animation: iconBounce 0.8s ease-out 0.4s both;
+  animation: imageBounce 0.8s ease-out 0.4s both;
+}
+
+.gift-image {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  border-radius: 12px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+  object-fit: cover;
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+/* 文字禮物容器 */
+.gift-text-container {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  animation: imageBounce 0.8s ease-out 0.4s both;
+}
+
+.gift-text-content {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 40px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.gift-text-line {
+  font-size: 28px;
+  font-weight: bold;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
+  line-height: 1.6;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.gift-text-line:last-child {
+  margin-bottom: 0;
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .gift-name-large {
@@ -875,18 +932,18 @@ const packClasses = computed(() => {
   }
 }
 
-@keyframes iconBounce {
+@keyframes imageBounce {
   0% {
-    transform: scale(0) rotate(-180deg);
+    transform: scale(0) rotate(-5deg);
     opacity: 0;
   }
 
   60% {
-    transform: scale(1.2) rotate(10deg);
+    transform: scale(1.05) rotate(2deg);
   }
 
   80% {
-    transform: scale(0.9) rotate(-5deg);
+    transform: scale(0.98) rotate(-1deg);
   }
 
   100% {
@@ -933,13 +990,28 @@ const packClasses = computed(() => {
     min-width: 250px;
   }
 
-  .gift-icon-large {
-    font-size: 60px;
+  .gift-image-container {
     margin-bottom: 15px;
   }
 
-  .gift-name-large {
-    font-size: 28px;
+  .gift-image {
+    max-width: 100%;
+  }
+
+  .gift-text-container {
+    max-width: 100%;
+  }
+
+  .gift-text-content {
+    padding: 30px 20px;
+  }
+
+  .gift-text-line {
+    font-size: 22px;
+  }
+
+  .gift-text-line:last-child {
+    font-size: 20px;
   }
 }
 </style>

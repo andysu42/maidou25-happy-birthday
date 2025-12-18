@@ -13,20 +13,21 @@ const openedCards = computed(() => {
 <template>
   <div class="gift-list-container">
     <div class="gift-list-header">
-      <h2 class="list-title">🎉 所有禮物 🎉</h2>
-      <p class="list-subtitle">恭喜你獲得以下禮物！</p>
+      <h2 class="list-title">🎉 郭子萱 生日快樂 🎉</h2>
+      <p class="list-subtitle">恭喜妳獲得以下禮物！</p>
     </div>
-    
+
     <div class="gift-list">
-      <div
-        v-for="(card, index) in openedCards"
-        :key="card.id"
-        class="gift-item"
-        :style="{ '--delay': `${index * 0.1}s` }"
-      >
+      <div v-for="(card, index) in openedCards" :key="card.id" class="gift-item"
+        :style="{ '--delay': `${index * 0.1}s` }">
         <div class="gift-item-content">
           <div class="gift-number">{{ index + 1 }}</div>
-          <div class="gift-icon">🎁</div>
+          <!-- 圖片禮物 -->
+          <div v-if="card.giftImage" class="gift-image-small">
+            <img :src="card.giftImage" :alt="card.giftName" class="gift-image-thumb" />
+          </div>
+          <!-- 文字禮物 -->
+          <div v-else class="gift-icon">🎁</div>
           <div class="gift-name">{{ card.giftName }}</div>
         </div>
       </div>
@@ -115,6 +116,21 @@ const openedCards = computed(() => {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
+.gift-image-small {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.gift-image-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .gift-name {
   flex: 1;
   font-size: 20px;
@@ -128,6 +144,7 @@ const openedCards = computed(() => {
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -139,12 +156,15 @@ const openedCards = computed(() => {
     opacity: 0;
     transform: scale(0.3);
   }
+
   50% {
     transform: scale(1.05);
   }
+
   70% {
     transform: scale(0.9);
   }
+
   100% {
     opacity: 1;
     transform: scale(1);
@@ -156,6 +176,7 @@ const openedCards = computed(() => {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -194,9 +215,13 @@ const openedCards = computed(() => {
     font-size: 28px;
   }
 
+  .gift-image-small {
+    width: 50px;
+    height: 50px;
+  }
+
   .gift-name {
     font-size: 18px;
   }
 }
 </style>
-

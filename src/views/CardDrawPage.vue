@@ -71,7 +71,16 @@ function updateWindowWidth() {
 
 // 進入單卡模式
 function enterSingleCardMode(index: number) {
-  if (cardStore.cards[index].isOpened) return // 已開啟的卡片不能進入單卡模式
+  // 使用 visibleCards 來獲取實際可顯示的卡片
+  const visibleCards = cardStore.visibleCards
+  if (index >= visibleCards.length) return
+  if (visibleCards[index].isOpened) return // 已開啟的卡片不能進入單卡模式
+
+  // 檢查是否為 id='5' 的卡片，且其他卡片還沒全部開啟
+  if (visibleCards[index].id === '5' && !cardStore.otherCardsOpened) {
+    return // 不允許進入單卡模式
+  }
+
   selectedCardIndex.value = index
   singleCardMode.value = true
 }
@@ -84,6 +93,9 @@ function exitSingleCardMode() {
 
 // 計算每張卡片的旋轉角度和位置
 const getCardStyle = (index: number) => {
+  // 使用 visibleCards 來獲取實際可顯示的卡片
+  const visibleCards = cardStore.visibleCards
+
   // 單卡模式下，只顯示選中的卡片
   if (singleCardMode.value) {
     if (index === selectedCardIndex.value) {
@@ -104,7 +116,7 @@ const getCardStyle = (index: number) => {
   }
 
   // 正常模式下的計算
-  const totalCards = cardStore.cards.length
+  const totalCards = visibleCards.length
   const offset = index - currentIndex.value
   const config = carouselConfig.value
 
@@ -156,7 +168,8 @@ const getCardStyle = (index: number) => {
 
 // 切換到下一張
 function nextCard() {
-  if (currentIndex.value < cardStore.cards.length - 1) {
+  const visibleCards = cardStore.visibleCards
+  if (currentIndex.value < visibleCards.length - 1) {
     currentIndex.value++
   } else {
     currentIndex.value = 0
@@ -165,10 +178,11 @@ function nextCard() {
 
 // 切換到上一張
 function prevCard() {
+  const visibleCards = cardStore.visibleCards
   if (currentIndex.value > 0) {
     currentIndex.value--
   } else {
-    currentIndex.value = cardStore.cards.length - 1
+    currentIndex.value = visibleCards.length - 1
   }
 }
 
@@ -189,8 +203,11 @@ function handleTouchStart(e: TouchEvent) {
     const target = e.target as HTMLElement
     const cardWrapper = target.closest('.card-wrapper') as HTMLElement
     if (cardWrapper) {
-      const index = Array.from(cardWrapper.parentElement?.children || []).indexOf(cardWrapper)
-      clickTargetIndex.value = index >= 0 ? index : null
+      const visibleCards = cardStore.visibleCards
+      const allWrappers = Array.from(cardWrapper.parentElement?.children || [])
+      const index = allWrappers.indexOf(cardWrapper)
+      // 確保索引在 visibleCards 範圍內
+      clickTargetIndex.value = index >= 0 && index < visibleCards.length ? index : null
     } else {
       clickTargetIndex.value = null
     }
@@ -237,9 +254,12 @@ function handleTouchEnd() {
   if (!hasMoved.value || (Math.abs(diff) < threshold && Math.abs(touchEndY.value - touchStartY.value) < threshold)) {
     // 觸發點擊事件
     if (clickTargetIndex.value !== null && clickTargetIndex.value >= 0) {
-      const card = cardStore.cards[clickTargetIndex.value]
-      if (!card.isOpened) {
-        enterSingleCardMode(clickTargetIndex.value)
+      const visibleCards = cardStore.visibleCards
+      if (clickTargetIndex.value < visibleCards.length) {
+        const card = visibleCards[clickTargetIndex.value]
+        if (!card.isOpened) {
+          enterSingleCardMode(clickTargetIndex.value)
+        }
       }
     }
   } else if (Math.abs(diff) > threshold) {
@@ -278,8 +298,11 @@ function handleMouseDown(e: MouseEvent) {
   const target = e.target as HTMLElement
   const cardWrapper = target.closest('.card-wrapper') as HTMLElement
   if (cardWrapper) {
-    const index = Array.from(cardWrapper.parentElement?.children || []).indexOf(cardWrapper)
-    mouseClickTargetIndex = index >= 0 ? index : null
+    const visibleCards = cardStore.visibleCards
+    const allWrappers = Array.from(cardWrapper.parentElement?.children || [])
+    const index = allWrappers.indexOf(cardWrapper)
+    // 確保索引在 visibleCards 範圍內
+    mouseClickTargetIndex = index >= 0 && index < visibleCards.length ? index : null
   } else {
     mouseClickTargetIndex = null
   }
@@ -312,9 +335,12 @@ function handleMouseUp() {
   if (!hasMouseMoved || (Math.abs(diff) < threshold && Math.abs(mouseEndY - mouseStartY) < threshold)) {
     // 觸發點擊事件
     if (mouseClickTargetIndex !== null && mouseClickTargetIndex >= 0) {
-      const card = cardStore.cards[mouseClickTargetIndex]
-      if (!card.isOpened && !singleCardMode.value) {
-        enterSingleCardMode(mouseClickTargetIndex)
+      const visibleCards = cardStore.visibleCards
+      if (mouseClickTargetIndex < visibleCards.length) {
+        const card = visibleCards[mouseClickTargetIndex]
+        if (!card.isOpened && !singleCardMode.value) {
+          enterSingleCardMode(mouseClickTargetIndex)
+        }
       }
     }
   } else if (Math.abs(diff) > threshold) {
@@ -348,14 +374,15 @@ onUnmounted(() => {
 
 <template>
   <div class="card-draw-page" :class="{ 'single-card-mode': singleCardMode }">
-    <h1 v-if="!singleCardMode" class="page-title">抽卡遊戲</h1>
+    <h1 v-if="!singleCardMode" class="page-title">Dolly's Birthday Card Game</h1>
     <button v-if="singleCardMode" class="back-button" @click="exitSingleCardMode">
       ← 返回
     </button>
     <div class="cards-carousel" @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd"
       @mousedown="handleMouseDown">
       <div class="cards-3d-container">
-        <div v-for="(card, index) in cardStore.cards" :key="card.id" class="card-wrapper" :style="getCardStyle(index)">
+        <div v-for="(card, index) in cardStore.visibleCards" :key="card.id" class="card-wrapper"
+          :style="getCardStyle(index)">
           <Card :card="card" :index="index" :current-index="singleCardMode ? selectedCardIndex : currentIndex"
             :single-card-mode="singleCardMode" />
         </div>
