@@ -3,8 +3,12 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useCardStore } from '@/stores/cardStore'
 import Card from '@/components/Card.vue'
 import GiftList from '@/components/GiftList.vue'
+import bgMusic from '@/assets/Fujii Kaze - Hana (Official Video).mp3'
 
 const cardStore = useCardStore()
+
+// 背景音樂
+const backgroundMusic = ref<HTMLAudioElement | null>(null)
 
 // 當前顯示的卡片索引
 const currentIndex = ref(0)
@@ -363,12 +367,51 @@ onMounted(() => {
   window.addEventListener('mouseup', handleMouseUp)
   window.addEventListener('resize', updateWindowWidth)
   updateWindowWidth()
+
+  // 初始化背景音樂
+  // 注意：瀏覽器通常不允許自動播放，需要用戶互動後才能播放
+  // 所以我們在用戶第一次互動時嘗試播放
+  const initBackgroundMusic = () => {
+    if (backgroundMusic.value) return
+
+    // 創建音頻對象
+    backgroundMusic.value = new Audio(bgMusic)
+    backgroundMusic.value.loop = true // 循環播放
+    backgroundMusic.value.volume = 0.5 // 音量 50%
+
+    // 嘗試自動播放（可能會因為瀏覽器政策失敗）
+    backgroundMusic.value.play().catch(() => {
+      // 自動播放失敗，等待用戶互動
+    })
+  }
+
+  // 監聽用戶互動，嘗試播放音樂
+  const tryPlayMusic = () => {
+    if (backgroundMusic.value && backgroundMusic.value.paused) {
+      backgroundMusic.value.play().catch(() => {
+        // 播放失敗，忽略錯誤
+      })
+    }
+  }
+
+  // 初始化音樂
+  initBackgroundMusic()
+
+  // 在用戶第一次點擊或觸控時嘗試播放音樂
+  document.addEventListener('click', tryPlayMusic, { once: true })
+  document.addEventListener('touchstart', tryPlayMusic, { once: true })
 })
 
 onUnmounted(() => {
   window.removeEventListener('mousemove', handleMouseMove)
   window.removeEventListener('mouseup', handleMouseUp)
   window.removeEventListener('resize', updateWindowWidth)
+
+  // 清理背景音樂
+  if (backgroundMusic.value) {
+    backgroundMusic.value.pause()
+    backgroundMusic.value = null
+  }
 })
 </script>
 
